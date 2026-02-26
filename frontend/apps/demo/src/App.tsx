@@ -15,7 +15,9 @@ const languageSpec: QueryLanguageSpec = {
     number: ["=", "!=", ">", ">=", "<", "<=", "IN", "NOT IN"],
     boolean: ["=", "!="]
   },
-  functions: []
+  functions: [
+    { name: 'isEmpty' }
+  ]
 };
 
 export function App() {
@@ -42,7 +44,8 @@ export function App() {
           onDiagnosticsChange={setDiagnostics}
           onAstChange={setAst}
           callbacks={{
-            complete: async () => ({ items: [{ label: '"Open"', type: "constant", detail: "demo remote" }] }),
+            //complete: async () => ({ items: [{ label: '"Open"', type: "constant", detail: "demo remote" }] }),
+            complete: async () => ({ items: [] }),
             validateSemantics: async ({ ast }) => {
               if (ast.root.kind === "comparison" && ast.root.field.name === "priority" && ast.root.value.kind === "stringLiteral") {
                 return [

@@ -130,11 +130,12 @@ function buildExpression(node: SyntaxNode, input: string): QueryAstNode {
       return foldLogical(node, terms, "AND");
     }
     case "NotExpression": {
-      const nestedNot = node.getChild("NotExpression");
-      if (node.getChild("NotOp") && nestedNot) {
+      const hasNot = Boolean(node.getChild("NotOp"));
+      if (hasNot) {
+        const group = expectChild(node, ["Group"]);
         return {
           kind: "not",
-          expression: buildExpression(nestedNot, input),
+          expression: buildExpression(expectChild(group, ["Expression"]), input),
           span: spanOf(node)
         };
       }

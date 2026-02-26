@@ -50,24 +50,46 @@ function inferStaticCompletions(query: string, pos: number, spec: QueryLanguageS
   const before = query.slice(0, pos);
   const trimmed = before.replace(/\s+$/, "");
   const lastToken = trimmed.split(/\s+/).at(-1) ?? "";
+  const trailingIdentifier = trimmed.match(/[A-Za-z_][A-Za-z0-9_.-]*$/)?.[0] ?? "";
   const prevChar = trimmed.at(-1);
 
-  if (trimmed.length === 0 || prevChar === "(" || /(?:AND|OR|NOT)$/.test(trimmed)) {
+  if (isInListValueContext(trimmed) && (prevChar === "(" || prevChar === ",")) {
+    const field = inferInListField(trimmed, spec);
+    return scalarValueCompletions(spec, field?.name);
+  }
+
+  if (trimmed.length === 0 || prevChar === "(" || /(?:AND|OR)$/.test(trimmed)) {
     return [
       ...spec.fields.map((field) => ({ label: field.name, type: "variable" })),
       { label: "NOT", type: "keyword" }
     ];
   }
 
+  if (/(?:^|\s)NOT$/.test(trimmed)) {
+    return [{ label: "(", type: "text", detail: "start group" }];
+  }
+
   const fieldNames = new Set(spec.fields.map((f) => f.name));
-  if (fieldNames.has(lastToken)) {
-    const field = spec.fields.find((f) => f.name === lastToken);
+  if (fieldNames.has(trailingIdentifier)) {
+    const field = spec.fields.find((f) => f.name === trailingIdentifier);
     const operators = field?.operators ?? spec.operatorsByType[field?.type ?? "string"] ?? [];
     return operators.map((op) => ({ label: op, type: "operator" }));
   }
 
-  if (/^(=|!=|>|>=|<|<=|IN)$/.test(lastToken) || /NOT\s+IN$/.test(trimmed)) {
-    return valueCompletions(spec);
+  if (/NOT\s+IN$/.test(trimmed) || /(?:^|\s)IN$/.test(trimmed)) {
+    return [{ label: "(", type: "text", detail: "start list" }];
+  }
+
+  if (/^(=|!=|>|>=|<|<=)$/.test(lastToken)) {
+    const field = inferScalarComparisonField(trimmed, spec);
+    return scalarValueCompletions(spec, field?.name);
+  }
+
+  if (isClauseBoundaryContext(trimmed)) {
+    return [
+      { label: "AND", type: "keyword" },
+      { label: "OR", type: "keyword" }
+    ];
   }
 
   return [
@@ -78,21 +100,57 @@ function inferStaticCompletions(query: string, pos: number, spec: QueryLanguageS
   ];
 }
 
-function valueCompletions(spec: QueryLanguageSpec): Completion[] {
-  const values: Completion[] = [
-    { label: '""', apply: '""', type: "text", detail: "string" },
-    { label: "true", type: "constant" },
-    { label: "false", type: "constant" },
-    { label: "(", type: "text", detail: "start list" }
-  ];
-
-  for (const field of spec.fields) {
-    for (const enumValue of field.enumValues ?? []) {
-      values.push({ label: `\"${enumValue}\"`, type: "constant", detail: `${field.name} enum` });
-    }
+function scalarValueCompletions(spec: QueryLanguageSpec, fieldName?: string): Completion[] {
+  const field = fieldName ? spec.fields.find((candidate) => candidate.name === fieldName) : undefined;
+  if (!field) {
+    return [];
   }
 
-  return dedupeCompletions(values);
+  if (field.enumValues && field.enumValues.length > 0) {
+    return field.enumValues.map((enumValue) => ({
+      label: `\"${enumValue}\"`,
+      type: "constant",
+      detail: `${field.name} enum`
+    }));
+  }
+
+  switch (field.type) {
+    case "boolean":
+      return [
+        { label: "true", type: "constant" },
+        { label: "false", type: "constant" }
+      ];
+    case "string":
+      return [{ label: '""', apply: '""', type: "text", detail: "string" }];
+    case "number":
+      return [{ label: "0", type: "constant", detail: "number" }];
+  }
+}
+
+function isInListValueContext(trimmed: string): boolean {
+  return /(?:^|\s)(?:IN|NOT\s+IN)\s*\([^)]*$/.test(trimmed);
+}
+
+function isClauseBoundaryContext(trimmed: string): boolean {
+  return (
+    /(?:^|[\s(])[a-z_][a-z0-9_.-]*\s*(?:=|!=|>|>=|<|<=)\s*(?:\"(?:[^\"\\\\]|\\\\.)*\"|true|false|[0-9]+(?:\.[0-9]+)?)$/.test(
+      trimmed
+    ) ||
+    /(?:^|[\s(])[a-z_][a-z0-9_.-]*\s+(?:NOT\s+IN|IN)\s*\([^)]*\)$/.test(trimmed) ||
+    /\)$/.test(trimmed)
+  );
+}
+
+function inferScalarComparisonField(trimmed: string, spec: QueryLanguageSpec) {
+  const match = trimmed.match(/(?:^|[\s(])([a-z_][a-z0-9_.-]*)\s*(?:=|!=|>|>=|<|<=)$/);
+  if (!match) return undefined;
+  return spec.fields.find((field) => field.name === match[1]);
+}
+
+function inferInListField(trimmed: string, spec: QueryLanguageSpec) {
+  const match = trimmed.match(/(?:^|[\s(])([a-z_][a-z0-9_.-]*)\s+(?:NOT\s+IN|IN)\s*\([^)]*$/);
+  if (!match) return undefined;
+  return spec.fields.find((field) => field.name === match[1]);
 }
 
 function dedupeCompletions(items: Completion[]): Completion[] {

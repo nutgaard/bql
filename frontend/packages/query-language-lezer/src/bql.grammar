@@ -13,7 +13,7 @@ Expression { OrExpression }
 
 OrExpression { AndExpression (OrOp AndExpression)* }
 AndExpression { NotExpression (AndOp NotExpression)* }
-NotExpression { NotOp NotExpression | Primary }
+NotExpression { NotOp Group | Primary }
 Primary { Comparison | Group }
 
 Group { "(" Expression ")" }
