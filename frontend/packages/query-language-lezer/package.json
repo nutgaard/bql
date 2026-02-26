@@ -1,0 +1,28 @@
+{
+  "name": "@bql/query-language-lezer",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "generate": "lezer-generator src/bql.grammar -o src/parser.ts",
+    "build": "bun run generate && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo 'No tests'"
+  },
+  "dependencies": {
+    "@codemirror/language": "^6.11.3",
+    "@lezer/highlight": "^1.2.1",
+    "@lezer/lr": "^1.4.2"
+  },
+  "devDependencies": {
+    "@lezer/generator": "^1.8.0",
+    "typescript": "^5.9.2"
+  }
+}

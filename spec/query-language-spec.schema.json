@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/bql/query-language-spec.schema.json",
+  "title": "QueryLanguageSpec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "fields", "operatorsByType"],
+  "properties": {
+    "version": { "type": "string", "minLength": 1 },
+    "fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "type"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "type": { "enum": ["string", "number", "boolean"] },
+          "operators": { "type": "array", "items": { "type": "string" } },
+          "enumValues": { "type": "array", "items": { "type": "string" } },
+          "completionProviderKey": { "type": "string" }
+        }
+      }
+    },
+    "operatorsByType": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "string": { "type": "array", "items": { "type": "string" } },
+        "number": { "type": "array", "items": { "type": "string" } },
+        "boolean": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "functions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "completionPolicies": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

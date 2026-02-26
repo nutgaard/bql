@@ -1,0 +1,6 @@
+{
+  "name": "core-filter-valid",
+  "input": "status IN (\"Open\", \"Closed\") AND archived = false",
+  "expectedSyntaxOk": true,
+  "notes": "Valid core-filter query used by frontend and backend tests"
+}

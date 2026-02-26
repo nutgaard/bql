@@ -1,0 +1,35 @@
+@top Query { Expression }
+
+@skip { space }
+
+@tokens {
+  space { $[\t\n\r ]+ }
+  Identifier { $[a-z_] $[a-z0-9_.-]* }
+  Number { $[0-9]+ ("." $[0-9]+)? }
+  String { '"' (!["\\\n] | "\\" _)* '"' }
+}
+
+Expression { OrExpression }
+
+OrExpression { AndExpression (OrOp AndExpression)* }
+AndExpression { NotExpression (AndOp NotExpression)* }
+NotExpression { NotOp NotExpression | Primary }
+Primary { Comparison | Group }
+
+Group { "(" Expression ")" }
+
+Comparison {
+  Field CompareOperator ScalarValue |
+  Field InOperator ListLiteral
+}
+
+Field { Identifier }
+CompareOperator { "=" | "!=" | ">" | ">=" | "<" | "<=" }
+InOperator { "IN" | "NOT" "IN" }
+ListLiteral { "(" ListItem ("," ListItem)* ")" }
+ListItem { ScalarValue }
+ScalarValue { String | Number | Boolean }
+Boolean { "true" | "false" }
+AndOp { "AND" }
+OrOp { "OR" }
+NotOp { "NOT" }

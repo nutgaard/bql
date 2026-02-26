@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/bql/query-ast-envelope.schema.json",
+  "title": "QueryAstEnvelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["astVersion", "grammarVersion", "source", "root"],
+  "properties": {
+    "astVersion": { "type": "string", "minLength": 1 },
+    "grammarVersion": { "type": "string", "minLength": 1 },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rawQuery"],
+      "properties": {
+        "rawQuery": { "type": "string" }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parser", "nodeCount", "maxDepth"],
+      "properties": {
+        "parser": { "const": "lezer" },
+        "nodeCount": { "type": "integer", "minimum": 1 },
+        "maxDepth": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "root": { "$ref": "#/$defs/queryAstNode" }
+  },
+  "$defs": {
+    "span": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "type": "integer", "minimum": 0 },
+        "to": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "fieldRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name"],
+      "properties": {
+        "kind": { "const": "fieldRef" },
+        "name": { "type": "string" },
+        "span": { "$ref": "#/$defs/span" }
+      }
+    },
+    "stringLiteral": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": { "const": "stringLiteral" },
+        "value": { "type": "string" },
+        "span": { "$ref": "#/$defs/span" }
+      }
+    },
+    "numberLiteral": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value", "raw"],
+      "properties": {
+        "kind": { "const": "numberLiteral" },
+        "value": { "type": "number" },
+        "raw": { "type": "string" },
+        "span": { "$ref": "#/$defs/span" }
+      }
+    },
+    "booleanLiteral": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": { "const": "booleanLiteral" },
+        "value": { "type": "boolean" },
+        "span": { "$ref": "#/$defs/span" }
+      }
+    },
+    "list": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "items"],
+      "properties": {
+        "kind": { "const": "list" },
+        "items": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "$ref": "#/$defs/stringLiteral" },
+              { "$ref": "#/$defs/numberLiteral" },
+              { "$ref": "#/$defs/booleanLiteral" }
+            ]
+          }
+        },
+        "span": { "$ref": "#/$defs/span" }
+      }
+    },
+    "queryValue": {
+      "oneOf": [
+        { "$ref": "#/$defs/stringLiteral" },
+        { "$ref": "#/$defs/numberLiteral" },
+        { "$ref": "#/$defs/booleanLiteral" },
+        { "$ref": "#/$defs/list" }
+      ]
+    },
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "field", "operator", "value"],
+      "properties": {
+        "kind": { "const": "comparison" },
+        "field": { "$ref": "#/$defs/fieldRef" },
+        "operator": { "type": "string" },
+        "value": { "$ref": "#/$defs/queryValue" },
+        "span": { "$ref": "#/$defs/span" }
+      }
+    },
+    "logical": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "operator", "left", "right"],
+      "properties": {
+        "kind": { "const": "logical" },
+        "operator": { "enum": ["AND", "OR"] },
+        "left": { "$ref": "#/$defs/queryAstNode" },
+        "right": { "$ref": "#/$defs/queryAstNode" },
+        "span": { "$ref": "#/$defs/span" }
+      }
+    },
+    "not": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "expression"],
+      "properties": {
+        "kind": { "const": "not" },
+        "expression": { "$ref": "#/$defs/queryAstNode" },
+        "span": { "$ref": "#/$defs/span" }
+      }
+    },
+    "queryAstNode": {
+      "oneOf": [
+        { "$ref": "#/$defs/comparison" },
+        { "$ref": "#/$defs/logical" },
+        { "$ref": "#/$defs/not" }
+      ]
+    }
+  }
+}
