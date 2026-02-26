@@ -1,6 +1,7 @@
 import {describe, expect, test} from "bun:test";
 import {CompletionContext} from "@codemirror/autocomplete";
 import {EditorState} from "@codemirror/state";
+import { bqlLanguageSupport } from "@bql/query-language-lezer";
 import {type CompletionCallback, createCompletionSource} from "./completion";
 import type {QueryLanguageSpec} from "./types";
 
@@ -204,7 +205,19 @@ describe("createCompletionSource (callback, dedupe, and offsets)", () => {
   test("uses word start as completion 'from' for partial field tokens", async () => {
     const result = await runCompletionCase({ queryWithCursor: "sta|" });
     expect(result.from).toBe(0);
-    expect(result.labels).toContain("status");
+    expect(result.labels).toEqual(["status"]);
+  });
+
+  test("uses word start as completion 'from'", async () => {
+    const result = await runCompletionCase({ queryWithCursor: "a|" });
+    expect(result.from).toBe(0);
+    expect(result.labels).toEqual(["archived", "assignee"]);
+  });
+
+  test("uses word start as completion 'from' for partial macro tokens", async () => {
+    const result = await runCompletionCase({ queryWithCursor: "is|" });
+    expect(result.from).toBe(0);
+    expect(result.labels).toEqual(["isOpen()"]);
   });
 
   test("uses word start as completion 'from' for callback-provided value tokens", async () => {
@@ -231,7 +244,7 @@ async function runCompletionCase(args: RunCompletionArgs): Promise<CompletionRun
     grammarVersion: args.grammarVersion ?? "1",
     complete: args.callback
   });
-  const state = EditorState.create({ doc: query });
+  const state = EditorState.create({ doc: query, extensions: [bqlLanguageSupport()] });
   const context = new CompletionContext(state, cursorOffset, args.explicit ?? true);
   const result = await source(context);
 

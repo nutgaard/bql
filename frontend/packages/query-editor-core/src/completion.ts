@@ -1,6 +1,8 @@
 import type { Completion, CompletionContext, CompletionResult } from "@codemirror/autocomplete";
-import type { CompletionRequest, CompletionResponse, QueryLanguageSpec } from "./types";
+import type { EditorState } from "@codemirror/state";
 import { buildCompletionRequest } from "./analysis";
+import { inferCompletionSyntaxContext } from "./completion-syntax";
+import type { CompletionRequest, CompletionResponse, QueryLanguageSpec } from "./types";
 
 export type CompletionCallback = (req: CompletionRequest) => Promise<CompletionResponse>;
 
@@ -13,7 +15,7 @@ export function createCompletionSource(config: {
     const word = context.matchBefore(/[A-Za-z_][A-Za-z0-9_.-]*/);
     const query = context.state.doc.toString();
     const pos = context.pos;
-    const staticItems = inferStaticCompletions(query, pos, config.languageSpec);
+    const plan = inferStaticCompletionPlan(context.state, query, pos, config.languageSpec);
 
     let callbackItems: Completion[] = [];
     if (config.complete) {
@@ -32,7 +34,10 @@ export function createCompletionSource(config: {
       }
     }
 
-    const options = dedupeCompletions([...staticItems, ...callbackItems]);
+    let options = dedupeCompletions([...plan.staticItems, ...callbackItems]);
+    if (plan.labelPrefixFilter) {
+      options = filterCompletionsByLabelPrefix(options, plan.labelPrefixFilter);
+    }
     if (options.length === 0) {
       return null;
     }
@@ -46,63 +51,58 @@ export function createCompletionSource(config: {
   };
 }
 
-function inferStaticCompletions(query: string, pos: number, spec: QueryLanguageSpec): Completion[] {
-  const before = query.slice(0, pos);
-  const trimmed = before.replace(/\s+$/, "");
-  const lastToken = trimmed.split(/\s+/).at(-1) ?? "";
-  const trailingIdentifier = trimmed.match(/[A-Za-z_][A-Za-z0-9_.-]*$/)?.[0] ?? "";
-  const prevChar = trimmed.at(-1);
+type StaticCompletionPlan = {
+  staticItems: Completion[];
+  labelPrefixFilter?: string;
+};
 
-  if (isInListValueContext(trimmed) && (prevChar === "(" || prevChar === ",")) {
-    const field = inferInListField(trimmed, spec);
-    return scalarValueCompletions(spec, field?.name);
+function inferStaticCompletionPlan(
+  state: EditorState,
+  query: string,
+  pos: number,
+  spec: QueryLanguageSpec
+): StaticCompletionPlan {
+  const syntaxContext = inferCompletionSyntaxContext({ state, query, pos, spec });
+
+  switch (syntaxContext.kind) {
+    case "inListValueStart":
+      return { staticItems: scalarValueCompletions(spec, syntaxContext.fieldName) };
+    case "clauseStart":
+      return { staticItems: clauseStartCompletions(spec) };
+    case "afterNot":
+      return { staticItems: afterNotCompletions(spec) };
+    case "afterField":
+      return { staticItems: operatorCompletions(spec, syntaxContext.fieldName) };
+    case "partialClauseStart":
+      return {
+        staticItems: clauseStartCompletions(spec),
+        labelPrefixFilter: syntaxContext.prefix
+      };
+    case "partialAfterNot":
+      return {
+        staticItems: afterNotCompletions(spec),
+        labelPrefixFilter: syntaxContext.prefix
+      };
+    case "afterInOperator":
+      return { staticItems: [{ label: "(", type: "text", detail: "start list" }] };
+    case "afterCompareOperator":
+      return { staticItems: scalarValueCompletions(spec, syntaxContext.fieldName) };
+    case "clauseBoundary":
+      return {
+        staticItems: [
+          { label: "AND", type: "keyword" },
+          { label: "OR", type: "keyword" }
+        ]
+      };
+    case "fallback":
+      return { staticItems: fallbackCompletions(spec) };
   }
+}
 
-  if (trimmed.length === 0 || prevChar === "(" || /(?:AND|OR)$/.test(trimmed)) {
-    return [
-      ...spec.fields.map((field) => ({ label: field.name, type: "variable" })),
-      ...macroAliasCompletions(spec),
-      { label: "NOT", type: "keyword" }
-    ];
-  }
-
-  if (/(?:^|\s)NOT$/.test(trimmed)) {
-    return [
-      { label: "(", type: "text", detail: "start group" },
-      ...spec.fields.filter((field) => field.type === "boolean").map((field) => ({ label: field.name, type: "variable" })),
-      ...macroAliasCompletions(spec)
-    ];
-  }
-
-  const fieldNames = new Set(spec.fields.map((f) => f.name));
-  if (fieldNames.has(trailingIdentifier)) {
-    const field = spec.fields.find((f) => f.name === trailingIdentifier);
-    const operators = field?.operators ?? spec.operatorsByType[field?.type ?? "string"] ?? [];
-    return operators.map((op) => ({ label: op, type: "operator" }));
-  }
-
-  if (/NOT\s+IN$/.test(trimmed) || /(?:^|\s)IN$/.test(trimmed)) {
-    return [{ label: "(", type: "text", detail: "start list" }];
-  }
-
-  if (/^(=|!=|>|>=|<|<=)$/.test(lastToken)) {
-    const field = inferScalarComparisonField(trimmed, spec);
-    return scalarValueCompletions(spec, field?.name);
-  }
-
-  if (isClauseBoundaryContext(trimmed)) {
-    return [
-      { label: "AND", type: "keyword" },
-      { label: "OR", type: "keyword" }
-    ];
-  }
-
-  return [
-    { label: "AND", type: "keyword" },
-    { label: "OR", type: "keyword" },
-    { label: "IN", type: "operator" },
-    ...spec.fields.map((field) => ({ label: field.name, type: "variable" }))
-  ];
+function operatorCompletions(spec: QueryLanguageSpec, fieldName: string): Completion[] {
+  const field = spec.fields.find((candidate) => candidate.name === fieldName);
+  const operators = field?.operators ?? spec.operatorsByType[field?.type ?? "string"] ?? [];
+  return operators.map((op) => ({ label: op, type: "operator" }));
 }
 
 function scalarValueCompletions(spec: QueryLanguageSpec, fieldName?: string): Completion[] {
@@ -140,30 +140,37 @@ function macroAliasCompletions(spec: QueryLanguageSpec): Completion[] {
   }));
 }
 
-function isInListValueContext(trimmed: string): boolean {
-  return /(?:^|\s)(?:IN|NOT\s+IN)\s*\([^)]*$/.test(trimmed);
+function clauseStartCompletions(spec: QueryLanguageSpec): Completion[] {
+  return [
+    ...spec.fields.map((field) => ({ label: field.name, type: "variable" })),
+    ...macroAliasCompletions(spec),
+    { label: "NOT", type: "keyword" }
+  ];
 }
 
-function isClauseBoundaryContext(trimmed: string): boolean {
-  return (
-    /(?:^|[\s(])[a-z_][a-z0-9_.-]*\s*(?:=|!=|>|>=|<|<=)\s*(?:\"(?:[^\"\\\\]|\\\\.)*\"|true|false|[0-9]+(?:\.[0-9]+)?)$/.test(
-      trimmed
-    ) ||
-    /(?:^|[\s(])[a-z_][a-z0-9_.-]*\s+(?:NOT\s+IN|IN)\s*\([^)]*\)$/.test(trimmed) ||
-    /\)$/.test(trimmed)
-  );
+function afterNotCompletions(spec: QueryLanguageSpec): Completion[] {
+  return [
+    { label: "(", type: "text", detail: "start group" },
+    ...spec.fields
+      .filter((field) => field.type === "boolean")
+      .map((field) => ({ label: field.name, type: "variable" })),
+    ...macroAliasCompletions(spec)
+  ];
 }
 
-function inferScalarComparisonField(trimmed: string, spec: QueryLanguageSpec) {
-  const match = trimmed.match(/(?:^|[\s(])([a-z_][a-z0-9_.-]*)\s*(?:=|!=|>|>=|<|<=)$/);
-  if (!match) return undefined;
-  return spec.fields.find((field) => field.name === match[1]);
+function fallbackCompletions(spec: QueryLanguageSpec): Completion[] {
+  return [
+    { label: "AND", type: "keyword" },
+    { label: "OR", type: "keyword" },
+    { label: "IN", type: "operator" },
+    ...spec.fields.map((field) => ({ label: field.name, type: "variable" }))
+  ];
 }
 
-function inferInListField(trimmed: string, spec: QueryLanguageSpec) {
-  const match = trimmed.match(/(?:^|[\s(])([a-z_][a-z0-9_.-]*)\s+(?:NOT\s+IN|IN)\s*\([^)]*$/);
-  if (!match) return undefined;
-  return spec.fields.find((field) => field.name === match[1]);
+function filterCompletionsByLabelPrefix(items: Completion[], prefix: string): Completion[] {
+  return items
+    .filter((item) => item.label.startsWith(prefix))
+    .sort((a, b) => a.label.localeCompare(b.label));
 }
 
 function dedupeCompletions(items: Completion[]): Completion[] {
