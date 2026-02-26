@@ -2,8 +2,8 @@
 import {LRParser} from "@lezer/lr"
 export const parser = LRParser.deserialize({
   version: 14,
-  states: "&xOVQPOOOOQO'#Cb'#CbObQPO'#CeO!PQPO'#CdOVQPO'#CpOOQO'#Cc'#CcO!kQPO'#CaOOQO'#Ca'#CaO!sQPO'#C`O#RQPO'#C_OOQO'#C^'#C^QOQPOOO#^QPO,59ZOOQO'#Cg'#CgOOQO'#Cl'#ClO#cQPO'#ClO#hQPO,59OO#vQPO,59OO#{QPO,59[OOQO,58{,58{OOQO'#Cq'#CqOVQPO'#CtO$QQPO,58zOOQO'#Cr'#CrOVQPO'#CuO$`QPO,58yOOQO1G.u1G.uOOQO,59W,59WOOQO'#Ck'#CkOOQO'#Ch'#ChOOQO1G.j1G.jO#hQPO'#CmOOQO1G.v1G.vOOQO,59`,59`OOQO-E6r-E6rOOQO,59a,59aOOQO-E6s-E6sOOQO'#Cn'#CnO$kQPO,59XO#hQPO'#CsO$sQPO1G.sOOQO1G.s1G.sOOQO,59_,59_OOQO-E6q-E6qOOQO7+$_7+$_",
-  stateData: "%U~OlOS~OYQOmPOwSO~Ow[OmXXnXXoXXpXXqXXrXXsXXvXX~Om_On]Oo]Op]Oq]Or]Os]Ov^O~OYQOwSO~OzdOjSX{SXySX~O{gOjRXyRX~OyjO~OvkO~O]mO^mOtlOulO~OwoO~OypO~OzdOjSa{SaySa~O{gOjRayRa~OxwOyyO~OxwOy|O~Oz{mvtuYv~",
+  states: "&xOVQPOOOOQO'#Cb'#CbObQPO'#CeO!]QPO'#CdOVQPO'#CpOOQO'#Cc'#CcO#TQPO'#CaOOQO'#Ca'#CaO#]QPO'#C`O#kQPO'#C_OOQO'#C^'#C^QOQPOOO#vQPO,59ZOOQO'#Cg'#CgOOQO'#Cl'#ClO#{QPO'#ClO$QQPO,59OO$`QPO,59OO$eQPO,59[OOQO,58{,58{OOQO'#Cq'#CqOVQPO'#CtO$jQPO,58zOOQO'#Cr'#CrOVQPO'#CuO$xQPO,58yOOQO1G.u1G.uOOQO,59W,59WOOQO'#Ck'#CkOOQO'#Ch'#ChOOQO1G.j1G.jO$QQPO'#CmOOQO1G.v1G.vOOQO,59`,59`OOQO-E6r-E6rOOQO,59a,59aOOQO-E6s-E6sOOQO'#Cn'#CnO%TQPO,59XO$QQPO'#CsO%]QPO1G.sOOQO1G.s1G.sOOQO,59_,59_OOQO-E6q-E6qOOQO7+$_7+$_",
+  stateData: "%n~OlOS~OYQOmPOwSO~Ow[OjXXmXXnXXoXXpXXqXXrXXsXXvXXzXX{XXyXX~Om_On]Oo]Op]Oq]Or]Os]Ov^OjWXzWX{WXyWX~OYQOwSO~OzdOjSX{SXySX~O{gOjRXyRX~OyjO~OvkO~O]mO^mOtlOulO~OwoO~OypO~OzdOjSa{SaySa~O{gOjRayRa~OxwOyyO~OxwOy|O~Oz{mvtuYv~",
   goto: "#zjPPkqu|!U![!e!lP!s!vPP!}#S#V#Y!e!e#`#d#h#n#tQZORbSTYOSSXOSRshUWOShRqeXUOSehWVOSehRcUZTOSUehZROSUehR`RQn`TuowVm`owRaRRnaQvoRzwTeWfThXiQxvR{xQfWRrfQiXRti",
   nodeNames: "⚠ Query Expression OrExpression AndExpression NotExpression NotOp Primary Comparison Field Identifier CompareOperator ScalarValue String Number Boolean InOperator ListLiteral ListItem MacroCall Group AndOp OrOp",
   maxTerm: 43,
@@ -12,5 +12,5 @@ export const parser = LRParser.deserialize({
   tokenData: "2i~RjXY!sYZ!s]^!spq!sqr#Urs#axy%Tyz%Y|}%_!Q![%d!^!_%}!_!`&[!`!a&a!c!d&n!d!k']!k!l(|!l!p']!p!q*U!q!r+{!r!}']#R#S']#T#Y']#Y#Z-T#Z#h']#h#i0T#i#o']~!xSl~XY!sYZ!s]^!spq!s~#XP!_!`#[~#aOo~~#dWOY#aZr#ars#|s#O#a#O#P$R#P;'S#a;'S;=`$}<%lO#a~$RO]~~$URO;'S#a;'S;=`$_;=`O#a~$bXOY#aZr#ars#|s#O#a#O#P$R#P;'S#a;'S;=`$};=`<%l#a<%lO#a~%QP;=`<%l#a~%YOw~~%_Oy~~%dOx~~%iQ^~!O!P%o!Q![%d~%rP!Q![%u~%zP^~!Q![%u~&SPr~!_!`&V~&[Os~~&aOn~~&fPp~!_!`&i~&nOq~~&sWY~}!O']!O!P']!Q![']!c!p']!p!q't!q!}']#R#S']#T#o']~'bUY~}!O']!O!P']!Q![']!c!}']#R#S']#T#o']~'yWY~}!O']!O!P']!Q![']!c!f']!f!g(c!g!}']#R#S']#T#o']~(jUz~Y~}!O']!O!P']!Q![']!c!}']#R#S']#T#o']~)RWY~}!O']!O!P']!Q![']!c!p']!p!q)k!q!}']#R#S']#T#o']~)rUv~Y~}!O']!O!P']!Q![']!c!}']#R#S']#T#o']~*ZWY~}!O']!O!P']!Q![']!c!q']!q!r*s!r!}']#R#S']#T#o']~*xWY~}!O']!O!P']!Q![']!c!v']!v!w+b!w!}']#R#S']#T#o']~+iUm~Y~}!O']!O!P']!Q![']!c!}']#R#S']#T#o']~,QWY~}!O']!O!P']!Q![']!c!t']!t!u,j!u!}']#R#S']#T#o']~,qU{~Y~}!O']!O!P']!Q![']!c!}']#R#S']#T#o']~-YVY~}!O']!O!P']!Q![']!c!}']#R#S']#T#U-o#U#o']~-tWY~}!O']!O!P']!Q![']!c!}']#R#S']#T#`']#`#a.^#a#o']~.cWY~}!O']!O!P']!Q![']!c!}']#R#S']#T#g']#g#h.{#h#o']~/QWY~}!O']!O!P']!Q![']!c!}']#R#S']#T#X']#X#Y/j#Y#o']~/qUu~Y~}!O']!O!P']!Q![']!c!}']#R#S']#T#o']~0YWY~}!O']!O!P']!Q![']!c!}']#R#S']#T#f']#f#g0r#g#o']~0wWY~}!O']!O!P']!Q![']!c!}']#R#S']#T#i']#i#j1a#j#o']~1fWY~}!O']!O!P']!Q![']!c!}']#R#S']#T#X']#X#Y2O#Y#o']~2VUt~Y~}!O']!O!P']!Q![']!c!}']#R#S']#T#o']",
   tokenizers: [0],
   topRules: {"Query":[0,1]},
-  tokenPrec: 181
+  tokenPrec: 205
 })

@@ -69,6 +69,7 @@ function inferStaticCompletions(query: string, pos: number, spec: QueryLanguageS
   if (/(?:^|\s)NOT$/.test(trimmed)) {
     return [
       { label: "(", type: "text", detail: "start group" },
+      ...spec.fields.filter((field) => field.type === "boolean").map((field) => ({ label: field.name, type: "variable" })),
       ...macroAliasCompletions(spec)
     ];
   }

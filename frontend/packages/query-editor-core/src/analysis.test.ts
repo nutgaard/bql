@@ -26,100 +26,153 @@ describe("analyzeQuery (NOT syntax)", () => {
   test("accepts grouped NOT comparison", () => {
     const result = analyze('NOT (status = "Open")');
 
-    expect(result.syntaxDiagnostics).toEqual([]);
-    expect(result.ast).not.toBeNull();
-    expect(result.ast?.root.kind).toBe("not");
+    expect(result).toMatchObject({
+      syntaxDiagnostics: [],
+      ast: { root: { kind: "not" } }
+    });
   });
 
   test("accepts grouped NOT logical expression", () => {
     const result = analyze('NOT (status = "Open" OR archived = true)');
 
-    expect(result.syntaxDiagnostics).toEqual([]);
-    expect(result.ast).not.toBeNull();
-    expect(result.ast?.root.kind).toBe("not");
+    expect(result).toMatchObject({
+      syntaxDiagnostics: [],
+      ast: { root: { kind: "not" } }
+    });
   });
 
   test("accepts direct NOT comparison", () => {
     const result = analyze('NOT status = "Open"');
 
-    expect(result.syntaxDiagnostics).toEqual([]);
-    expect(result.ast).not.toBeNull();
-    if (!result.ast) throw new Error("expected ast");
-    expect(result.ast.root.kind).toBe("not");
-    if (result.ast.root.kind !== "not") throw new Error("expected not");
-    expect(result.ast.root.expression.kind).toBe("comparison");
+    expect(result).toMatchObject({
+      syntaxDiagnostics: [],
+      ast: {
+        root: {
+          kind: "not",
+          expression: { kind: "comparison" }
+        }
+      }
+    });
   });
 
-  test("rejects ungrouped NOT boolean field shorthand", () => {
+  test("accepts ungrouped NOT boolean field shorthand", () => {
     const result = analyze("NOT archived");
 
-    expect(result.ast).toBeNull();
-    expect(result.syntaxDiagnostics.length).toBeGreaterThan(0);
+    expect(result).toMatchObject({
+      syntaxDiagnostics: [],
+      ast: {
+        root: {
+          kind: "not",
+          expression: {
+            kind: "comparison",
+            field: { name: "archived" },
+            operator: "=",
+            value: { kind: "booleanLiteral", value: true }
+          }
+        }
+      }
+    });
   });
 });
 
 describe("analyzeQuery (macro aliases)", () => {
+  test("accepts bare boolean field shorthand", () => {
+    const result = analyze("archived");
+
+    expect(result).toMatchObject({
+      syntaxDiagnostics: [],
+      ast: {
+        root: {
+          kind: "comparison",
+          field: { name: "archived" },
+          operator: "=",
+          value: { kind: "booleanLiteral", value: true }
+        }
+      }
+    });
+  });
+
+  test("rejects non-boolean field shorthand", () => {
+    const result = analyze("status");
+
+    expect(result).toMatchObject({
+      ast: null,
+      syntaxDiagnostics: [{ code: "INVALID_BOOLEAN_FIELD_SHORTHAND" }]
+    });
+  });
+
   test("expands macro alias to comparison AST", () => {
     const result = analyze("isOpen()");
 
-    expect(result.syntaxDiagnostics).toEqual([]);
-    expect(result.ast).not.toBeNull();
-    if (!result.ast) throw new Error("expected ast");
-
-    expect(result.ast.root.kind).toBe("comparison");
-    if (result.ast.root.kind !== "comparison") throw new Error("expected comparison");
-
-    expect(result.ast.root.field.name).toBe("status");
-    expect(result.ast.root.operator).toBe("=");
-    expect(result.ast.root.value.kind).toBe("stringLiteral");
-    if (result.ast.root.value.kind !== "stringLiteral") throw new Error("expected string literal");
-    expect(result.ast.root.value.value).toBe("Open");
+    expect(result).toMatchObject({
+      syntaxDiagnostics: [],
+      ast: {
+        root: {
+          kind: "comparison",
+          field: { name: "status" },
+          operator: "=",
+          value: { kind: "stringLiteral", value: "Open" }
+        }
+      }
+    });
   });
 
   test("maps expanded macro spans to macro call span", () => {
     const result = analyze("isOpen()");
-    expect(result.ast).not.toBeNull();
-    if (!result.ast || result.ast.root.kind !== "comparison") throw new Error("expected comparison");
+    expect(result).toMatchObject({
+      syntaxDiagnostics: [],
+      ast: { root: { kind: "comparison" } }
+    });
+    const root = result.ast?.root;
+    if (!root || root.kind !== "comparison") {
+      throw new Error("expected comparison root");
+    }
 
     const macroSpan = { from: 0, to: "isOpen()".length };
-    expect(result.ast.root.span).toEqual(macroSpan);
-    expect(result.ast.root.field.span).toEqual(macroSpan);
-    expect(result.ast.root.value.span).toEqual(macroSpan);
+    expect(root.span).toEqual(macroSpan);
+    expect(root.field.span).toEqual(macroSpan);
+    expect(root.value.span).toEqual(macroSpan);
   });
 
   test("supports direct NOT on macro aliases", () => {
     const result = analyze("NOT isOpen()");
 
-    expect(result.syntaxDiagnostics).toEqual([]);
-    expect(result.ast).not.toBeNull();
-    if (!result.ast) throw new Error("expected ast");
-
-    expect(result.ast.root.kind).toBe("not");
-    if (result.ast.root.kind !== "not") throw new Error("expected not");
-    expect(result.ast.root.expression.kind).toBe("comparison");
+    expect(result).toMatchObject({
+      syntaxDiagnostics: [],
+      ast: {
+        root: {
+          kind: "not",
+          expression: { kind: "comparison" }
+        }
+      }
+    });
   });
 
   test("expands macro aliases inside logical expressions", () => {
     const result = analyze("isOpen() OR archived = false");
 
-    expect(result.syntaxDiagnostics).toEqual([]);
-    expect(result.ast).not.toBeNull();
-    if (!result.ast) throw new Error("expected ast");
-
-    expect(result.ast.root.kind).toBe("logical");
-    if (result.ast.root.kind !== "logical") throw new Error("expected logical");
-    expect(result.ast.root.operator).toBe("OR");
-    expect(result.ast.root.left.kind).toBe("comparison");
-    expect(result.ast.root.right.kind).toBe("comparison");
+    expect(result).toMatchObject({
+      syntaxDiagnostics: [],
+      ast: {
+        root: {
+          kind: "logical",
+          operator: "OR",
+          left: { kind: "comparison" },
+          right: { kind: "comparison" }
+        }
+      }
+    });
   });
 
   test("returns UNKNOWN_MACRO_ALIAS for unresolved macro calls", () => {
     const result = analyze("missing()");
 
-    expect(result.ast).toBeNull();
-    expect(result.syntaxDiagnostics[0]?.code).toBe("UNKNOWN_MACRO_ALIAS");
-    expect(result.syntaxDiagnostics[0]?.from).toBe(0);
-    expect(result.syntaxDiagnostics[0]?.to).toBe("missing()".length);
+    expect(result).toMatchObject({
+      ast: null,
+      syntaxDiagnostics: [{ code: "UNKNOWN_MACRO_ALIAS" }]
+    });
+    const diagnostic = result.syntaxDiagnostics[0]!;
+    expect(diagnostic).toMatchObject({ from: 0, to: "missing()".length });
   });
 
   test("returns INVALID_MACRO_EXPANSION for malformed macro templates", () => {
@@ -128,8 +181,10 @@ describe("analyzeQuery (macro aliases)", () => {
       functions: [{ name: "isOpen", kind: "macroAlias", expansion: "status =", detail: "broken" }]
     });
 
-    expect(result.ast).toBeNull();
-    expect(result.syntaxDiagnostics[0]?.code).toBe("INVALID_MACRO_EXPANSION");
+    expect(result).toMatchObject({
+      ast: null,
+      syntaxDiagnostics: [{ code: "INVALID_MACRO_EXPANSION" }]
+    });
   });
 
   test("returns DUPLICATE_MACRO_ALIAS for duplicate function names", () => {
@@ -141,8 +196,10 @@ describe("analyzeQuery (macro aliases)", () => {
       ]
     });
 
-    expect(result.ast).toBeNull();
-    expect(result.syntaxDiagnostics[0]?.code).toBe("DUPLICATE_MACRO_ALIAS");
+    expect(result).toMatchObject({
+      ast: null,
+      syntaxDiagnostics: [{ code: "DUPLICATE_MACRO_ALIAS" }]
+    });
   });
 
   test("returns MACRO_EXPANSION_CYCLE for recursive macro aliases", () => {
@@ -154,8 +211,10 @@ describe("analyzeQuery (macro aliases)", () => {
       ]
     });
 
-    expect(result.ast).toBeNull();
-    expect(result.syntaxDiagnostics[0]?.code).toBe("MACRO_EXPANSION_CYCLE");
+    expect(result).toMatchObject({
+      ast: null,
+      syntaxDiagnostics: [{ code: "MACRO_EXPANSION_CYCLE" }]
+    });
   });
 
   test("returns MACRO_EXPANSION_DEPTH_EXCEEDED for deep macro chains", () => {
@@ -164,8 +223,10 @@ describe("analyzeQuery (macro aliases)", () => {
       functions: buildDeepMacroChain(11)
     });
 
-    expect(result.ast).toBeNull();
-    expect(result.syntaxDiagnostics[0]?.code).toBe("MACRO_EXPANSION_DEPTH_EXCEEDED");
+    expect(result).toMatchObject({
+      ast: null,
+      syntaxDiagnostics: [{ code: "MACRO_EXPANSION_DEPTH_EXCEEDED" }]
+    });
   });
 });
 

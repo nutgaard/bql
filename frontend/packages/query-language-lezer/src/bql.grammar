@@ -22,7 +22,8 @@ Group { "(" Expression ")" }
 
 Comparison {
   Field CompareOperator ScalarValue |
-  Field InOperator ListLiteral
+  Field InOperator ListLiteral |
+  Field
 }
 
 MacroCall { Identifier "(" ")" }

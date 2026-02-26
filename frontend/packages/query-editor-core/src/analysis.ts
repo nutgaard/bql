@@ -225,9 +225,10 @@ function buildExpression(node: SyntaxNode, input: string, context: AstBuildConte
       return expandMacroAlias(node, input, context);
     case "Comparison": {
       const fieldNode = expectChild(node, ["Field"]);
+      const fieldName = textOf(expectChild(fieldNode, ["Identifier"]), input);
       const fieldRef = {
         kind: "fieldRef" as const,
-        name: textOf(expectChild(fieldNode, ["Identifier"]), input),
+        name: fieldName,
         span: spanOf(fieldNode)
       };
       const compareOperator = node.getChild("CompareOperator");
@@ -241,13 +242,36 @@ function buildExpression(node: SyntaxNode, input: string, context: AstBuildConte
           span: spanOf(node)
         };
       }
-      const inOperator = expectChild(node, ["InOperator"]);
-      const listLiteral = expectChild(node, ["ListLiteral"]);
+      const inOperator = node.getChild("InOperator");
+      if (inOperator) {
+        const listLiteral = expectChild(node, ["ListLiteral"]);
+        return {
+          kind: "comparison",
+          field: fieldRef,
+          operator: normalizeSpace(textOf(inOperator, input)),
+          value: buildListValue(listLiteral, input),
+          span: spanOf(node)
+        };
+      }
+
+      const fieldSpec = context.languageSpec.fields.find((field) => field.name === fieldName);
+      if (fieldSpec?.type !== "boolean") {
+        throw new AstBuildDiagnosticError(
+          "INVALID_BOOLEAN_FIELD_SHORTHAND",
+          `Boolean shorthand is only supported for boolean fields (got '${fieldName}')`,
+          spanOf(fieldNode)
+        );
+      }
+
       return {
         kind: "comparison",
         field: fieldRef,
-        operator: normalizeSpace(textOf(inOperator, input)),
-        value: buildListValue(listLiteral, input),
+        operator: "=",
+        value: {
+          kind: "booleanLiteral",
+          value: true,
+          span: spanOf(fieldNode)
+        },
         span: spanOf(node)
       };
     }

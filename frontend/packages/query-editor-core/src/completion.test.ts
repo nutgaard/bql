@@ -61,9 +61,9 @@ describe("createCompletionSource (static suggestions)", () => {
       input: 'status = "Open" OR |',
       expectedLabels: ["status", "priority", "assignee", "archived", "isOpen()", "NOT"]
     },
-    'suggests open parenthesis and macros after NOT': {
+    'suggests open parenthesis, boolean fields, and macros after NOT': {
       input: "NOT |",
-      expectedLabels: ["(", "isOpen()"]
+      expectedLabels: ["(", "archived", "isOpen()"]
     },
     'returns string operators after string field': {
       input: "status |",
