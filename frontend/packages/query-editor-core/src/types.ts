@@ -17,11 +17,18 @@ export type FieldSpec = {
   completionProviderKey?: string;
 };
 
+export type MacroAliasSpec = {
+  name: string;
+  kind: "macroAlias";
+  expansion: string;
+  detail?: string;
+};
+
 export type QueryLanguageSpec = {
   version: string;
   fields: FieldSpec[];
   operatorsByType: Partial<Record<FieldType, string[]>>;
-  functions?: Array<{ name: string }>;
+  functions?: MacroAliasSpec[];
   completionPolicies?: Record<string, string>;
 };
 

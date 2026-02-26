@@ -51,7 +51,8 @@ export function QueryEditor(props: QueryEditorProps) {
 
     const initialAnalysis = analyzeQuery(props.value, {
       astVersion: props.astVersion,
-      grammarVersion: props.grammarVersion
+      grammarVersion: props.grammarVersion,
+      languageSpec: props.languageSpec
     });
 
     const state = EditorState.create({

@@ -2,22 +2,46 @@ import type { SyntaxNode } from "@lezer/common";
 import { bqlParser } from "@bql/query-language-lezer";
 import type {
   CompletionRequest,
+  MacroAliasSpec,
   QueryAstEnvelope,
   QueryAstNode,
   QueryDiagnostic,
+  QueryLanguageSpec,
   SourceSpan,
   ListNode,
-  LiteralNode
+  LiteralNode,
+  ValueNode
 } from "./types";
 
 export type AnalyzeQueryOptions = {
   astVersion: string;
   grammarVersion: string;
+  languageSpec: QueryLanguageSpec;
 };
 
 export type QueryAnalysis = {
   syntaxDiagnostics: QueryDiagnostic[];
   ast: QueryAstEnvelope | null;
+};
+
+const MAX_MACRO_EXPANSION_DEPTH = 10;
+
+class AstBuildDiagnosticError extends Error {
+  constructor(
+    readonly diagnosticCode: QueryDiagnostic["code"],
+    message: string,
+    readonly span: SourceSpan
+  ) {
+    super(message);
+    this.name = "AstBuildDiagnosticError";
+  }
+}
+
+type AstBuildContext = {
+  languageSpec: QueryLanguageSpec;
+  macroAliases: Map<string, MacroAliasSpec>;
+  macroStack: string[];
+  macroDepth: number;
 };
 
 export function analyzeQuery(input: string, options: AnalyzeQueryOptions): QueryAnalysis {
@@ -28,7 +52,8 @@ export function analyzeQuery(input: string, options: AnalyzeQueryOptions): Query
   }
 
   try {
-    const root = buildAstFromQuery(tree.topNode, input);
+    const buildContext = createAstBuildContext(options.languageSpec, input);
+    const root = buildAstFromQuery(tree.topNode, input, buildContext);
     const stats = computeAstStats(root);
     const ast: QueryAstEnvelope = {
       astVersion: options.astVersion,
@@ -43,6 +68,21 @@ export function analyzeQuery(input: string, options: AnalyzeQueryOptions): Query
     };
     return { syntaxDiagnostics: [], ast };
   } catch (error) {
+    if (error instanceof AstBuildDiagnosticError) {
+      return {
+        syntaxDiagnostics: [
+          {
+            severity: "error",
+            code: error.diagnosticCode,
+            message: error.message,
+            from: error.span.from,
+            to: error.span.to,
+            source: "syntax"
+          }
+        ],
+        ast: null
+      };
+    }
     return {
       syntaxDiagnostics: [
         {
@@ -57,6 +97,31 @@ export function analyzeQuery(input: string, options: AnalyzeQueryOptions): Query
       ast: null
     };
   }
+}
+
+function createAstBuildContext(languageSpec: QueryLanguageSpec, input: string): AstBuildContext {
+  return {
+    languageSpec,
+    macroAliases: buildMacroAliasIndex(languageSpec, input),
+    macroStack: [],
+    macroDepth: 0
+  };
+}
+
+function buildMacroAliasIndex(languageSpec: QueryLanguageSpec, input: string): Map<string, MacroAliasSpec> {
+  const aliases = new Map<string, MacroAliasSpec>();
+  for (const fn of languageSpec.functions ?? []) {
+    const existing = aliases.get(fn.name);
+    if (existing) {
+      throw new AstBuildDiagnosticError(
+        "DUPLICATE_MACRO_ALIAS",
+        `Duplicate macro alias '${fn.name}'`,
+        { from: 0, to: Math.max(1, input.length) }
+      );
+    }
+    aliases.set(fn.name, fn);
+  }
+  return aliases;
 }
 
 function collectSyntaxDiagnostics(node: SyntaxNode, input: string): QueryDiagnostic[] {
@@ -109,49 +174,55 @@ function visit(node: SyntaxNode, fn: (node: SyntaxNode) => void): void {
   }
 }
 
-function buildAstFromQuery(queryNode: SyntaxNode, input: string): QueryAstNode {
+function buildAstFromQuery(queryNode: SyntaxNode, input: string, context: AstBuildContext): QueryAstNode {
   const expression = queryNode.getChild("Expression") ?? queryNode.firstChild;
   if (!expression) {
     throw new Error("Missing Expression node");
   }
-  return buildExpression(expression, input);
+  return buildExpression(expression, input, context);
 }
 
-function buildExpression(node: SyntaxNode, input: string): QueryAstNode {
+function buildExpression(node: SyntaxNode, input: string, context: AstBuildContext): QueryAstNode {
   switch (node.name) {
     case "Expression":
-      return buildExpression(expectChild(node, ["OrExpression"]), input);
+      return buildExpression(expectChild(node, ["OrExpression"]), input, context);
     case "OrExpression": {
-      const terms = node.getChildren("AndExpression").map((child) => buildExpression(child, input));
+      const terms = node.getChildren("AndExpression").map((child) => buildExpression(child, input, context));
       return foldLogical(node, terms, "OR");
     }
     case "AndExpression": {
-      const terms = node.getChildren("NotExpression").map((child) => buildExpression(child, input));
+      const terms = node.getChildren("NotExpression").map((child) => buildExpression(child, input, context));
       return foldLogical(node, terms, "AND");
     }
     case "NotExpression": {
       const hasNot = Boolean(node.getChild("NotOp"));
       if (hasNot) {
-        const group = expectChild(node, ["Group"]);
+        const primary = expectChild(node, ["Primary"]);
         return {
           kind: "not",
-          expression: buildExpression(expectChild(group, ["Expression"]), input),
+          expression: buildExpression(primary, input, context),
           span: spanOf(node)
         };
       }
-      return buildExpression(expectChild(node, ["Primary"]), input);
+      return buildExpression(expectChild(node, ["Primary"]), input, context);
     }
     case "Primary": {
       const comparison = node.getChild("Comparison");
       if (comparison) {
-        return buildExpression(comparison, input);
+        return buildExpression(comparison, input, context);
+      }
+      const macroCall = node.getChild("MacroCall");
+      if (macroCall) {
+        return buildExpression(macroCall, input, context);
       }
       const group = node.getChild("Group");
       if (group) {
-        return buildExpression(expectChild(group, ["Expression"]), input);
+        return buildExpression(expectChild(group, ["Expression"]), input, context);
       }
       break;
     }
+    case "MacroCall":
+      return expandMacroAlias(node, input, context);
     case "Comparison": {
       const fieldNode = expectChild(node, ["Field"]);
       const fieldRef = {
@@ -183,6 +254,51 @@ function buildExpression(node: SyntaxNode, input: string): QueryAstNode {
   }
 
   throw new Error(`Unsupported node while building AST: ${node.name}`);
+}
+
+function expandMacroAlias(node: SyntaxNode, input: string, context: AstBuildContext): QueryAstNode {
+  const macroSpan = spanOf(node);
+  const identifier = expectChild(node, ["Identifier"]);
+  const name = textOf(identifier, input);
+  const alias = context.macroAliases.get(name);
+
+  if (!alias) {
+    throw new AstBuildDiagnosticError("UNKNOWN_MACRO_ALIAS", `Unknown macro alias '${name}'`, macroSpan);
+  }
+
+  if (context.macroStack.includes(name)) {
+    throw new AstBuildDiagnosticError(
+      "MACRO_EXPANSION_CYCLE",
+      `Macro alias cycle detected: ${[...context.macroStack, name].join(" -> ")}`,
+      macroSpan
+    );
+  }
+
+  if (context.macroDepth >= MAX_MACRO_EXPANSION_DEPTH) {
+    throw new AstBuildDiagnosticError(
+      "MACRO_EXPANSION_DEPTH_EXCEEDED",
+      `Macro alias expansion depth exceeded (${MAX_MACRO_EXPANSION_DEPTH})`,
+      macroSpan
+    );
+  }
+
+  const expansionTree = bqlParser.parse(alias.expansion);
+  const expansionDiagnostics = collectSyntaxDiagnostics(expansionTree.topNode, alias.expansion);
+  if (expansionDiagnostics.length > 0) {
+    throw new AstBuildDiagnosticError(
+      "INVALID_MACRO_EXPANSION",
+      `Invalid macro expansion for '${name}'`,
+      macroSpan
+    );
+  }
+
+  const expanded = buildAstFromQuery(expansionTree.topNode, alias.expansion, {
+    ...context,
+    macroStack: [...context.macroStack, name],
+    macroDepth: context.macroDepth + 1
+  });
+
+  return remapQueryAstSpans(expanded, macroSpan);
 }
 
 function foldLogical(node: SyntaxNode, terms: QueryAstNode[], operator: "AND" | "OR"): QueryAstNode {
@@ -278,6 +394,45 @@ function normalizeSpace(value: string): string {
 function unquoteString(raw: string): string {
   if (raw.length < 2) return raw;
   return raw.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+}
+
+function remapQueryAstSpans(node: QueryAstNode, span: SourceSpan): QueryAstNode {
+  switch (node.kind) {
+    case "comparison":
+      return {
+        ...node,
+        span,
+        field: {
+          ...node.field,
+          span
+        },
+        value: remapValueSpans(node.value, span)
+      };
+    case "logical":
+      return {
+        ...node,
+        span,
+        left: remapQueryAstSpans(node.left, span),
+        right: remapQueryAstSpans(node.right, span)
+      };
+    case "not":
+      return {
+        ...node,
+        span,
+        expression: remapQueryAstSpans(node.expression, span)
+      };
+  }
+}
+
+function remapValueSpans(value: ValueNode, span: SourceSpan): ValueNode {
+  if (value.kind === "list") {
+    return {
+      ...value,
+      span,
+      items: value.items.map((item) => ({ ...item, span }))
+    };
+  }
+  return { ...value, span };
 }
 
 function computeAstStats(root: QueryAstNode): { nodeCount: number; maxDepth: number } {

@@ -4,17 +4,19 @@
 
 @tokens {
   space { $[\t\n\r ]+ }
-  Identifier { $[a-z_] $[a-z0-9_.-]* }
+  Identifier { $[A-Za-z_] $[A-Za-z0-9_.-]* }
   Number { $[0-9]+ ("." $[0-9]+)? }
   String { '"' (!["\\\n] | "\\" _)* '"' }
+
+  @precedence { "AND", "OR", "NOT", "IN", "true", "false", Identifier }
 }
 
 Expression { OrExpression }
 
 OrExpression { AndExpression (OrOp AndExpression)* }
 AndExpression { NotExpression (AndOp NotExpression)* }
-NotExpression { NotOp Group | Primary }
-Primary { Comparison | Group }
+NotExpression { NotOp Primary | Primary }
+Primary { Comparison | MacroCall | Group }
 
 Group { "(" Expression ")" }
 
@@ -23,6 +25,7 @@ Comparison {
   Field InOperator ListLiteral
 }
 
+MacroCall { Identifier "(" ")" }
 Field { Identifier }
 CompareOperator { "=" | "!=" | ">" | ">=" | "<" | "<=" }
 InOperator { "IN" | "NOT" "IN" }

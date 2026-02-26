@@ -16,7 +16,7 @@ const languageSpec: QueryLanguageSpec = {
     boolean: ["=", "!="]
   },
   functions: [
-    { name: 'isEmpty' }
+    { name: "isOpen", kind: "macroAlias", expansion: 'status = "Open"', detail: "Alias for open issues" }
   ]
 };
 

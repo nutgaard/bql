@@ -17,7 +17,14 @@ const baseSpec: QueryLanguageSpec = {
     number: ["=", "!=", ">", ">=", "<", "<=", "IN", "NOT IN"],
     boolean: ["=", "!="]
   },
-  functions: []
+  functions: [
+    {
+      name: "isOpen",
+      kind: "macroAlias",
+      expansion: 'status = "Open"',
+      detail: "Alias for open issues"
+    }
+  ]
 };
 
 type RunCompletionArgs = {
@@ -40,23 +47,23 @@ describe("createCompletionSource (static suggestions)", () => {
   const testCases = {
     'suggests fields and NOT at clause start (start of query)': {
       input: '|',
-      expectedLabels: ["status", "priority", "assignee", "archived", "NOT"]
+      expectedLabels: ["status", "priority", "assignee", "archived", "isOpen()", "NOT"]
     },
     'suggests fields and NOT at clause start (after open parenthesis)': {
       input: '( |',
-      expectedLabels: ["status", "priority", "assignee", "archived", "NOT"]
+      expectedLabels: ["status", "priority", "assignee", "archived", "isOpen()", "NOT"]
     },
     'suggests fields and NOT at clause start (after AND)': {
       input: 'status = "Open" AND |',
-      expectedLabels: ["status", "priority", "assignee", "archived", "NOT"]
+      expectedLabels: ["status", "priority", "assignee", "archived", "isOpen()", "NOT"]
     },
     'suggests fields and NOT at clause start (after OR)': {
       input: 'status = "Open" OR |',
-      expectedLabels: ["status", "priority", "assignee", "archived", "NOT"]
+      expectedLabels: ["status", "priority", "assignee", "archived", "isOpen()", "NOT"]
     },
-    'suggests open parenthesis after NOT': {
+    'suggests open parenthesis and macros after NOT': {
       input: "NOT |",
-      expectedLabels: ["("]
+      expectedLabels: ["(", "isOpen()"]
     },
     'returns string operators after string field': {
       input: "status |",
@@ -137,6 +144,18 @@ describe("createCompletionSource (callback, dedupe, and offsets)", () => {
     });
 
     expect(result.labels).toEqual(['"Open"', '"Closed"', '"In Progress"', "TEAM-42"]);
+  });
+
+  test("dedupes callback macro aliases that overlap with static macro suggestions", async () => {
+    const result = await runCompletionCase({
+      queryWithCursor: "|",
+      callback: async () => ({
+        items: [{ label: "isOpen()", type: "function", detail: "remote duplicate macro" }]
+      })
+    });
+
+    expect(result.labels).toEqual(["status", "priority", "assignee", "archived", "isOpen()", "NOT"]);
+    expect(result.labels.filter((label) => label === "isOpen()")).toHaveLength(1);
   });
 
   test("passes query/cursor/version metadata to callback", async () => {

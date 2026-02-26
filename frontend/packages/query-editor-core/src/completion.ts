@@ -61,12 +61,16 @@ function inferStaticCompletions(query: string, pos: number, spec: QueryLanguageS
   if (trimmed.length === 0 || prevChar === "(" || /(?:AND|OR)$/.test(trimmed)) {
     return [
       ...spec.fields.map((field) => ({ label: field.name, type: "variable" })),
+      ...macroAliasCompletions(spec),
       { label: "NOT", type: "keyword" }
     ];
   }
 
   if (/(?:^|\s)NOT$/.test(trimmed)) {
-    return [{ label: "(", type: "text", detail: "start group" }];
+    return [
+      { label: "(", type: "text", detail: "start group" },
+      ...macroAliasCompletions(spec)
+    ];
   }
 
   const fieldNames = new Set(spec.fields.map((f) => f.name));
@@ -125,6 +129,14 @@ function scalarValueCompletions(spec: QueryLanguageSpec, fieldName?: string): Co
     case "number":
       return [{ label: "0", type: "constant", detail: "number" }];
   }
+}
+
+function macroAliasCompletions(spec: QueryLanguageSpec): Completion[] {
+  return (spec.functions ?? []).map((fn) => ({
+    label: `${fn.name}()`,
+    type: "function",
+    detail: fn.detail ?? "macro alias"
+  }));
 }
 
 function isInListValueContext(trimmed: string): boolean {
